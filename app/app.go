@@ -105,6 +105,10 @@ import (
 	"github.com/tharsis/ethermint/x/feemarket"
 	feemarketkeeper "github.com/tharsis/ethermint/x/feemarket/keeper"
 	feemarkettypes "github.com/tharsis/ethermint/x/feemarket/types"
+
+	integritymodule "github.com/chen7gx/integrity/x/integrity"
+	integritymodulekeeper "github.com/chen7gx/integrity/x/integrity/keeper"
+	integritymoduletypes "github.com/chen7gx/integrity/x/integrity/types"
 )
 
 func init() {
@@ -117,6 +121,7 @@ func init() {
 }
 
 const appName = "ethermintd"
+const Name = "integrity"
 
 var (
 	// DefaultNodeHome default home directories for the application daemon
@@ -150,6 +155,7 @@ var (
 		// Ethermint modules
 		evm.AppModuleBasic{},
 		feemarket.AppModuleBasic{},
+		integritymodule.AppModuleBasic{},
 	)
 
 	// module account permissions
@@ -209,6 +215,7 @@ type EthermintApp struct {
 	IBCKeeper        *ibckeeper.Keeper // IBC Keeper must be a pointer in the app, so we can SetRouter on it correctly
 	EvidenceKeeper   evidencekeeper.Keeper
 	TransferKeeper   ibctransferkeeper.Keeper
+	IntegrityKeeper  integritymodulekeeper.Keeper
 
 	// make scoped keepers public for test purposes
 	ScopedIBCKeeper      capabilitykeeper.ScopedKeeper
@@ -268,6 +275,7 @@ func NewEthermintApp(
 		ibchost.StoreKey, ibctransfertypes.StoreKey,
 		// ethermint keys
 		evmtypes.StoreKey, feemarkettypes.StoreKey,
+		integritymoduletypes.StoreKey,
 	)
 
 	// Add the EVM transient store key
@@ -372,6 +380,15 @@ func NewEthermintApp(
 		),
 	)
 
+	app.IntegrityKeeper = *integritymodulekeeper.NewKeeper(
+		appCodec,
+		keys[integritymoduletypes.StoreKey],
+		keys[integritymoduletypes.MemStoreKey],
+		app.BankKeeper,
+		app.MintKeeper,
+	)
+	integrityModule := integritymodule.NewAppModule(appCodec, app.IntegrityKeeper)
+
 	// Create Transfer Keepers
 	app.TransferKeeper = ibctransferkeeper.NewKeeper(
 		appCodec, keys[ibctransfertypes.StoreKey], app.GetSubspace(ibctransfertypes.ModuleName),
@@ -428,6 +445,7 @@ func NewEthermintApp(
 		// Ethermint app modules
 		evm.NewAppModule(app.EvmKeeper, app.AccountKeeper),
 		feemarket.NewAppModule(app.FeeMarketKeeper),
+		integrityModule,
 	)
 
 	// During begin block slashing happens after distr.BeginBlocker so that
@@ -466,6 +484,7 @@ func NewEthermintApp(
 
 		// NOTE: crisis module must go at the end to check for invariants on each module
 		crisistypes.ModuleName,
+		integritymoduletypes.ModuleName,
 	)
 
 	app.mm.RegisterInvariants(&app.CrisisKeeper)
@@ -708,5 +727,6 @@ func initParamsKeeper(
 	// ethermint subspaces
 	paramsKeeper.Subspace(evmtypes.ModuleName)
 	paramsKeeper.Subspace(feemarkettypes.ModuleName)
+	paramsKeeper.Subspace(integritymoduletypes.ModuleName)
 	return paramsKeeper
 }
